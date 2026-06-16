@@ -1,0 +1,148 @@
+﻿@* Components/Pages/EnterPinPage.razor *@
+@page "/enter-pin"
+@namespace EntraUser.MauiBlazor.Components.Pages
+
+<RadzenStack AlignItems="AlignItems.Center"
+             JustifyContent="JustifyContent.Center"
+             Style="min-height:100vh;padding:2rem;
+                    background:var(--rz-base-background-color)">
+
+    <RadzenCard Style="width:100%;max-width:400px">
+        <RadzenStack Gap="1.25rem">
+
+            @* ── Header ──────────────────────────────────────────── *@
+            <RadzenStack AlignItems="AlignItems.Center" Gap="0.5rem">
+                <RadzenIcon Icon="pin"
+                            Style="font-size:2.5rem;color:#534AB7" />
+                <RadzenText TextStyle="TextStyle.H6"
+                            Style="font-weight:500;margin:0">
+                    Enter your PIN
+                </RadzenText>
+                @if (!string.IsNullOrEmpty(_displayName))
+                {
+                    <RadzenText TextStyle="TextStyle.Body2"
+                                Style="color:var(--rz-text-secondary-color)">
+                        Welcome back, @_displayName
+                    </RadzenText>
+                }
+            </RadzenStack>
+
+            <RadzenFormField Text="6-digit PIN" Style="width:100%">
+                <RadzenPassword @bind-Value="_pin"
+                                Placeholder="••••••"
+                                MaxLength="6"
+                                InputAttributes="@(new Dictionary<string,object>
+                                    {{ "inputmode","numeric" },
+                                     { "pattern","[0-9]*" },
+                                     { "autofocus","true" }})" />
+            </RadzenFormField>
+
+            @if (_error is not null)
+            {
+                <RadzenAlert AlertStyle="AlertStyle.Danger"
+                             ShowIcon="true"
+                             Variant="Variant.Flat">
+                    @_error
+                </RadzenAlert>
+            }
+
+            <RadzenButton Text="Sign in"
+                          Icon="login"
+                          ButtonStyle="ButtonStyle.Primary"
+                          Style="width:100%"
+                          Click="@HandleVerifyPin"
+                          IsBusy="@_busy"
+                          Disabled="@(_pin.Length != 6)" />
+
+            <RadzenButton Text="Sign in with Microsoft instead"
+                          ButtonStyle="ButtonStyle.Light"
+                          Style="width:100%"
+                          Click="@GoToTapLogin" />
+
+        </RadzenStack>
+    </RadzenCard>
+
+</RadzenStack>
+
+@code {
+    [Inject] IMediator              Mediator { get; set; } = default!;
+    [Inject] SessionService         Session  { get; set; } = default!;
+    [Inject] NavigationManager      Nav      { get; set; } = default!;
+    [Inject] NotificationService    Notify   { get; set; } = default!;
+    [Inject] IUserSessionRepository Repo     { get; set; } = default!;
+
+    [SupplyParameterFromQuery(Name = "upn")]
+    public string? Upn { get; set; }
+
+    string  _pin         = "";
+    string  _displayName = "";
+    string  _userUpn     = "";
+    bool    _busy;
+    string? _error;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        // ── Load display name from local DB ───────────────────────
+        _userUpn = Upn ?? "";
+
+        if (!string.IsNullOrWhiteSpace(_userUpn))
+        {
+            var session = await Repo.GetByUpnAsync(_userUpn);
+            if (session is not null)
+                _displayName = session.DisplayName;
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    async Task HandleVerifyPin()
+    {
+        _busy  = true;
+        _error = null;
+        try
+        {
+            var result = await Mediator.Send(
+                new VerifyPinCommand(_userUpn, _pin));
+
+            if (!result.Success)
+            {
+                _error = result.Message;
+                _pin   = "";
+                return;
+            }
+
+            // ── Load session data and populate SessionService ─────
+            var session = await Repo.GetByUpnAsync(_userUpn);
+            if (session is not null)
+            {
+                Session.SignIn(
+                    session.UserUpn,
+                    session.DisplayName,
+                    session.ObjectId,
+                    session.DisplayName.Split(' ')[0],
+                    session.AccessToken);
+            }
+
+            Notify.Notify(NotificationSeverity.Success,
+                "Signed in",
+                $"Welcome back, {_displayName}.");
+
+            Nav.NavigateTo("/dashboard");
+        }
+        catch (Exception ex)
+        {
+            _error = $"Sign-in failed: {ex.Message}";
+            _pin   = "";
+        }
+        finally
+        {
+            _busy = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    void GoToTapLogin()
+        => Nav.NavigateTo("/login?force=true");
+}

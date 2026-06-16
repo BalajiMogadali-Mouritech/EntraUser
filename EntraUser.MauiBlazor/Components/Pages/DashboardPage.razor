@@ -1,0 +1,129 @@
+@page "/dashboard"
+@namespace EntraUser.MauiBlazor.Components.Pages
+
+<RadzenStack Gap="1.5rem" Style="padding:1.5rem">
+
+    <RadzenStack Orientation="Orientation.Horizontal"
+                 AlignItems="AlignItems.Center"
+                 JustifyContent="JustifyContent.SpaceBetween">
+        <RadzenStack Orientation="Orientation.Horizontal"
+                     AlignItems="AlignItems.Center" Gap="0.75rem">
+            <div style="width:44px;height:44px;border-radius:50%;
+                        background:#EEEDFE;display:flex;align-items:center;
+                        justify-content:center;font-weight:500;
+                        font-size:15px;color:#3C3489">
+                @Initials
+            </div>
+            <RadzenStack Gap="0.1rem">
+                <RadzenText Style="font-weight:500;font-size:15px;margin:0">
+                    @Session.DisplayName
+                </RadzenText>
+                <RadzenText TextStyle="TextStyle.Caption"
+                            Style="color:var(--rz-text-secondary-color);margin:0">
+                    @Session.UserUpn
+                </RadzenText>
+            </RadzenStack>
+        </RadzenStack>
+        <RadzenButton Icon="logout" Text="Sign out"
+                      ButtonStyle="ButtonStyle.Light"
+                      Size="ButtonSize.Small"
+                      Click="@HandleSignOut" />
+    </RadzenStack>
+
+    <RadzenRow Gap="1rem">
+        @foreach (var kpi in _kpis)
+        {
+            <RadzenColumn SizeMD="3">
+                <div style="background:var(--rz-base-background-color);
+                            border:0.5px solid var(--rz-base-300);
+                            border-radius:8px;padding:1rem">
+                    <div style="font-size:12px;color:var(--rz-text-secondary-color);
+                                margin-bottom:4px">@kpi.Label</div>
+                    <div style="font-size:24px;font-weight:500">@kpi.Value</div>
+                </div>
+            </RadzenColumn>
+        }
+    </RadzenRow>
+
+    <RadzenCard>
+        <RadzenStack Orientation="Orientation.Horizontal"
+                     AlignItems="AlignItems.Center"
+                     JustifyContent="JustifyContent.SpaceBetween"
+                     Style="margin-bottom:1rem">
+            <RadzenText TextStyle="TextStyle.Subtitle1" Style="font-weight:500">
+                Recent quotes
+            </RadzenText>
+            <RadzenButton Text="New quote" Icon="add"
+                          ButtonStyle="ButtonStyle.Primary"
+                          Size="ButtonSize.Small" />
+        </RadzenStack>
+        <RadzenDataGrid Data="@_quotes" TItem="QuoteSummary"
+                        AllowSorting="true" PageSize="5"
+                        AllowPaging="true" EmptyText="No quotes yet.">
+            <Columns>
+                <RadzenDataGridColumn TItem="QuoteSummary"
+                                      Property="QuoteNumber" Title="Quote #" Width="90px" />
+                <RadzenDataGridColumn TItem="QuoteSummary"
+                                      Property="Customer"    Title="Customer" />
+                <RadzenDataGridColumn TItem="QuoteSummary"
+                                      Property="Status"      Title="Status" Width="110px">
+                    <Template Context="q">
+                        <RadzenBadge Text="@q.Status"
+                                     BadgeStyle="@StatusBadge(q.Status)" />
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="QuoteSummary"
+                                      Property="CreatedAt" Title="Date" Width="110px"
+                                      FormatString="{0:dd MMM yyyy}" />
+            </Columns>
+        </RadzenDataGrid>
+    </RadzenCard>
+
+</RadzenStack>
+
+@code {
+    [Inject] SessionService         Session { get; set; } = default!;
+    [Inject] IUserSessionRepository Repo    { get; set; } = default!;
+    [Inject] IMsalAuthService       Msal    { get; set; } = default!;
+    [Inject] NavigationManager      Nav     { get; set; } = default!;
+
+    List<QuoteSummary> _quotes = [];
+    List<KpiItem>       _kpis  = [];
+
+    string Initials => string.IsNullOrEmpty(Session.DisplayName) ? "?" :
+        string.Concat(Session.DisplayName
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Take(2).Select(w => char.ToUpper(w[0]).ToString()));
+
+    protected override void OnInitialized()
+    {
+        if (!Session.IsSignedIn) { Nav.NavigateTo("/login", replace: true); return; }
+        _kpis   = [new("Total quotes","12"), new("Pending review","4"),
+                   new("Approved","7"),      new("This month","3")];
+        _quotes = [new("1042","Securitas Paris",    "New",      DateTime.Today),
+                   new("1039","Securitas Berlin",   "Approved", DateTime.Today.AddDays(-3)),
+                   new("1035","Securitas London",   "Pending",  DateTime.Today.AddDays(-7)),
+                   new("1031","Securitas Madrid",   "Approved", DateTime.Today.AddDays(-14)),
+                   new("1028","Securitas Stockholm","Rejected", DateTime.Today.AddDays(-21))];
+    }
+
+    async Task HandleSignOut()
+    {
+        await Msal.SignOutAsync();
+        await Repo.UpdateLastLoginAsync(Session.UserUpn);
+        Session.SignOut();
+        Nav.NavigateTo("/login");
+    }
+
+    static BadgeStyle StatusBadge(string s) => s switch
+    {
+        "Approved" => BadgeStyle.Success,
+        "Pending"  => BadgeStyle.Warning,
+        "Rejected" => BadgeStyle.Danger,
+        _          => BadgeStyle.Light
+    };
+
+    record QuoteSummary(string QuoteNumber, string Customer,
+                        string Status, DateTime CreatedAt);
+    record KpiItem(string Label, string Value);
+}

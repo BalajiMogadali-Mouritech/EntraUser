@@ -1,0 +1,114 @@
+@page "/set-pin"
+@namespace EntraUser.MauiBlazor.Components.Pages
+
+<RadzenStack AlignItems="AlignItems.Center" JustifyContent="JustifyContent.Center"
+             Style="min-height:100vh;padding:2rem;background:var(--rz-base-background-color)">
+    <RadzenCard Style="width:100%;max-width:400px">
+        <RadzenStack Gap="1.25rem">
+
+            <RadzenStack AlignItems="AlignItems.Center" Gap="0.5rem">
+                <RadzenIcon Icon="pin" Style="font-size:2.5rem;color:#3B6D11" />
+                <RadzenText TextStyle="TextStyle.H6" Style="font-weight:500;margin:0">
+                    Set your 6-digit PIN
+                </RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2"
+                            Style="color:var(--rz-text-secondary-color);text-align:center">
+                    Your PIN will be used for quick sign-in.
+                    Stored securely on this device only.
+                </RadzenText>
+            </RadzenStack>
+
+            <RadzenFormField Text="6-digit PIN" Style="width:100%">
+                <RadzenPassword @bind-Value="_pin"
+                                @bind-Value:after="Validate"
+                                Placeholder="123456"
+                                MaxLength="6"
+                                InputAttributes="@(new Dictionary<string,object>
+                                    {{ "inputmode","numeric" },{ "pattern","[0-9]*" }})" />
+            </RadzenFormField>
+
+            <RadzenFormField Text="Confirm PIN" Style="width:100%">
+                <RadzenPassword @bind-Value="_confirmPin"
+                                @bind-Value:after="Validate"
+                                Placeholder="123456"
+                                MaxLength="6"
+                                InputAttributes="@(new Dictionary<string,object>
+                                    {{ "inputmode","numeric" },{ "pattern","[0-9]*" }})" />
+            </RadzenFormField>
+
+            <RadzenStack Gap="0.2rem">
+                <ValidationItem Ok="@IsLength6"   Text="Exactly 6 digits" />
+                <ValidationItem Ok="@IsAllDigits" Text="Numbers only" />
+                <ValidationItem Ok="@DoMatch"     Text="PINs match" />
+            </RadzenStack>
+
+            @if (_result is not null)
+            {
+                <RadzenAlert AlertStyle="AlertStyle.Success"
+                             ShowIcon="true" Variant="Variant.Flat">
+                    @_result.Message
+                </RadzenAlert>
+            }
+            @if (_error is not null)
+            {
+                <RadzenAlert AlertStyle="AlertStyle.Danger"
+                             ShowIcon="true" Variant="Variant.Flat">
+                    @_error
+                </RadzenAlert>
+            }
+
+            <RadzenButton Text="Set PIN &amp; continue"
+                          Icon="lock"
+                          ButtonStyle="ButtonStyle.Success"
+                          Style="width:100%"
+                          Click="@HandleSetPin"
+                          IsBusy="@_saving"
+                          Disabled="@(!IsValid)" />
+
+        </RadzenStack>
+    </RadzenCard>
+</RadzenStack>
+
+@code {
+    [Inject] IMediator           Mediator { get; set; } = default!;
+    [Inject] NavigationManager   Nav      { get; set; } = default!;
+    [Inject] NotificationService Notify   { get; set; } = default!;
+
+    [SupplyParameterFromQuery(Name = "upn")] public string? Upn { get; set; }
+
+    string           _pin        = "";
+    string           _confirmPin = "";
+    bool             _saving;
+    string?          _error;
+    SetPinResultDto? _result;
+
+    bool IsLength6   => _pin.Length == 6;
+    bool IsAllDigits => _pin.All(char.IsDigit);
+    bool DoMatch     => _pin == _confirmPin && !string.IsNullOrEmpty(_confirmPin);
+    bool IsValid     => IsLength6 && IsAllDigits && DoMatch;
+
+    void Validate() => StateHasChanged();
+
+    async Task HandleSetPin()
+    {
+        _saving = true;
+        _error  = null;
+        _result = null;
+        try
+        {
+            _result = await Mediator.Send(
+                new SetPinCommand(Upn ?? "", _pin, _confirmPin));
+
+            if (!_result.Success) { _error = _result.Message; _result = null; return; }
+
+            await InvokeAsync(StateHasChanged);
+            await Task.Delay(1500);
+
+            Notify.Notify(NotificationSeverity.Success,
+                "PIN set", "Welcome to SecuritasQuotingApp.");
+            Nav.NavigateTo("/dashboard");
+        }
+        catch (Exception ex) { _error = $"Failed: {ex.Message}"; }
+        finally { _saving = false; await InvokeAsync(StateHasChanged); }
+    }
+}

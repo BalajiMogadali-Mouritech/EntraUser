@@ -1,0 +1,198 @@
+@* Components/Pages/LoginPage.razor *@
+@page "/login"
+@namespace EntraUser.MauiBlazor.Components.Pages
+
+<RadzenStack AlignItems="AlignItems.Center"
+             JustifyContent="JustifyContent.Center"
+             Style="min-height:100vh;padding:2rem;
+                    background:var(--rz-base-background-color)">
+
+    <RadzenCard Style="width:100%;max-width:420px">
+        <RadzenStack Gap="1.5rem">
+
+            <RadzenStack AlignItems="AlignItems.Center" Gap="0.5rem">
+                <RadzenIcon Icon="shield_lock"
+                            Style="font-size:2.5rem;color:#534AB7" />
+                <RadzenText TextStyle="TextStyle.H6"
+                            Style="font-weight:500;margin:0">
+                    SecuritasQuotingApp
+                </RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2"
+                            Style="color:var(--rz-text-secondary-color);
+                                   text-align:center">
+                    Sign in with your Entra ID account.
+                </RadzenText>
+            </RadzenStack>
+
+            @if (_checking)
+            {
+                <RadzenStack AlignItems="AlignItems.Center" Gap="0.5rem">
+                    <RadzenProgressBarCircular ShowValue="false"
+                                               Mode="ProgressBarMode.Indeterminate"
+                                               Size="ProgressBarCircularSize.Small" />
+                    <RadzenText TextStyle="TextStyle.Caption"
+                                Style="color:var(--rz-text-secondary-color)">
+                        Checking local session…
+                    </RadzenText>
+                </RadzenStack>
+            }
+
+            @if (!_checking)
+            {
+                @if (_error is not null)
+                {
+                    <RadzenAlert AlertStyle="AlertStyle.Danger"
+                                 ShowIcon="true"
+                                 Variant="Variant.Flat">
+                        @_error
+                    </RadzenAlert>
+                }
+
+                @if (_info is not null)
+                {
+                    <RadzenAlert AlertStyle="AlertStyle.Info"
+                                 ShowIcon="true"
+                                 Variant="Variant.Flat">
+                        @_info
+                    </RadzenAlert>
+                }
+
+                <RadzenButton Text="Sign in with Microsoft"
+                              Icon="login"
+                              ButtonStyle="ButtonStyle.Primary"
+                              Style="width:100%"
+                              Click="@HandleSignIn"
+                              IsBusy="@_busy" />
+            }
+
+        </RadzenStack>
+    </RadzenCard>
+
+</RadzenStack>
+
+@code {
+    [Inject] IMediator Mediator { get; set; } = default!;
+    [Inject] SessionService Session { get; set; } = default!;
+    [Inject] NavigationManager Nav { get; set; } = default!;
+    [Inject] NotificationService Notify { get; set; } = default!;
+    [Inject] IUserSessionRepository Repo { get; set; } = default!;
+
+    // force=true skips local session check (from EnterPinPage back button)
+    [SupplyParameterFromQuery(Name = "force")]
+    public string? Force { get; set; }
+
+    bool _checking = true;
+    bool _busy;
+    string? _error;
+    string? _info;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        // ── Ensure DB exists ──────────────────────────────────────
+        await Repo.EnsureCreatedAsync();
+
+        // ── Skip local check if force=true ────────────────────────
+        if (Force == "true")
+        {
+            _checking = false;
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        // ── Check if a local session with PIN exists ───────────────
+        await CheckLocalSession();
+    }
+
+    async Task CheckLocalSession()
+    {
+        _checking = true;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            var sessions = await Repo.GetPendingSyncAsync();
+            var session = sessions.FirstOrDefault(s => s.HasPin);
+
+            if (session is not null)
+            {
+                // ── PIN exists — redirect to PIN entry ────────────
+                System.Diagnostics.Debug.WriteLine(
+                    $"[LoginPage] Local session found · " +
+                    $"UPN={session.UserUpn} · HasPin={session.HasPin}");
+
+                Nav.NavigateTo(
+                    $"/enter-pin" +
+                    $"?upn={Uri.EscapeDataString(session.UserUpn)}",
+                    replace: true);
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine(
+                $"[LoginPage] Local session check failed: {ex.Message}");
+        }
+        finally
+        {
+            _checking = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    async Task HandleSignIn()
+    {
+        _busy = true;
+        _error = null;
+        _info = "Opening Microsoft sign-in… " +
+                 "Enter your work email and TAP code.";
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            var result = await Mediator.Send(new SignInWithTapCommand());
+
+            if (!result.Success)
+            {
+                _error = result.Message;
+                _info = null;
+                return;
+            }
+
+            Session.SignIn(
+                result.UserUpn,
+                result.DisplayName,
+                result.ObjectId,
+                result.DisplayName.Split(' ')[0],
+                result.AccessToken);
+
+            var local = await Repo.GetByUpnAsync(result.UserUpn);
+
+            if (local?.PasswordChangeRequired == true)
+                Nav.NavigateTo(
+                    $"/change-password" +
+                    $"?objectId={result.ObjectId}" +
+                    $"&upn={Uri.EscapeDataString(result.UserUpn)}");
+            else if (local?.HasPin != true)
+                Nav.NavigateTo(
+                    $"/set-pin" +
+                    $"?upn={Uri.EscapeDataString(result.UserUpn)}");
+            else
+            {
+                await Repo.UpdateLastLoginAsync(result.UserUpn);
+                Nav.NavigateTo("/dashboard");
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = $"Sign-in failed: {ex.Message}";
+            _info = null;
+        }
+        finally
+        {
+            _busy = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+}

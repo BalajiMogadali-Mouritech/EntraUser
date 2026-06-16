@@ -1,0 +1,26 @@
+@namespace EntraUser.MauiBlazor.Components
+
+<RadzenComponents />
+
+<Router AppAssembly="@typeof(App).Assembly">
+    <Found Context="routeData">
+        <RouteView RouteData="@routeData"
+                   DefaultLayout="@typeof(Layout.MainLayout)" />
+    </Found>
+    <NotFound>
+        <LayoutView Layout="@typeof(Layout.MainLayout)">
+            <RadzenStack AlignItems="AlignItems.Center"
+                         JustifyContent="JustifyContent.Center"
+                         Style="height:60vh;gap:1rem">
+                <RadzenText TextStyle="TextStyle.H6">Page not found</RadzenText>
+                <RadzenButton Text="Go to sign in"
+                              ButtonStyle="ButtonStyle.Primary"
+                              Click="@(() => Nav.NavigateTo("/login"))" />
+            </RadzenStack>
+        </LayoutView>
+    </NotFound>
+</Router>
+
+@code {
+    [Inject] NavigationManager Nav { get; set; } = default!;
+}

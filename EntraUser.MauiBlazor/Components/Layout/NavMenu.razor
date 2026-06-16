@@ -1,0 +1,26 @@
+@namespace EntraUser.MauiBlazor.Components.Layout
+@inject SessionService    Session
+@inject NavigationManager Nav
+@inject IMsalAuthService  Msal
+
+@if (Session.IsSignedIn)
+{
+    <RadzenPanelMenu>
+        <RadzenPanelMenuItem Text="Dashboard"
+                             Icon="dashboard"
+                             Path="/dashboard"
+                             Match="NavLinkMatch.All" />
+        <RadzenPanelMenuItem Text="Sign out"
+                             Icon="logout"
+                             Click="@HandleSignOut" />
+    </RadzenPanelMenu>
+}
+
+@code {
+    async Task HandleSignOut()
+    {
+        await Msal.SignOutAsync();
+        Session.SignOut();
+        Nav.NavigateTo("/login");
+    }
+}

@@ -1,0 +1,14 @@
+@namespace EntraUser.MauiBlazor.Shared
+@using Radzen.Blazor
+
+<div style="display:flex;align-items:center;gap:6px;font-size:12px;
+            color:@(Ok ? "var(--rz-success)" : "var(--rz-text-disabled-color)")">
+    <RadzenIcon Icon="@(Ok ? "check_circle" : "radio_button_unchecked")"
+                Style="font-size:15px" />
+    @Text
+</div>
+
+@code {
+    [Parameter] public bool   Ok   { get; set; }
+    [Parameter] public string Text { get; set; } = "";
+}

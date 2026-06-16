@@ -1,0 +1,19 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+	<RootNamespace>EntraUser.Core</RootNamespace>
+	<AssemblyName>EntraUser.Core</AssemblyName>
+  </PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\EntraUser.Domain\EntraUser.Domain.csproj" />
+	</ItemGroup>
+	<ItemGroup>
+		<PackageReference Include="MediatR"        Version="12.*" />
+		<PackageReference Include="Microsoft.Graph" Version="5.*" />
+	</ItemGroup>
+
+</Project>

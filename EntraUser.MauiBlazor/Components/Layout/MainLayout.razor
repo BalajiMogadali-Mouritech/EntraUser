@@ -1,0 +1,44 @@
+@namespace EntraUser.MauiBlazor.Components.Layout
+@inherits LayoutComponentBase
+@inject SessionService    Session
+@inject NavigationManager Nav
+
+@code {
+    protected override void OnInitialized()
+    {
+        var path = new Uri(Nav.Uri).AbsolutePath.ToLowerInvariant();
+        var pub = new[] { "/login", "/change-password", "/set-pin", "/enter-pin" };
+        if (!Session.IsSignedIn && !pub.Any(p => path.StartsWith(p)))
+            Nav.NavigateTo("/login", replace: true);
+    }
+}
+
+<RadzenLayout>
+    <RadzenHeader>
+        <RadzenStack Orientation="Orientation.Horizontal"
+                     AlignItems="AlignItems.Center"
+                     Gap="0.5rem" Style="padding:0 1rem">
+            <RadzenSidebarToggle Click="@(() => _expanded = !_expanded)" />
+            <RadzenIcon Icon="shield_lock"
+                        Style="color:#534AB7;font-size:1.25rem" />
+            <RadzenText TextStyle="TextStyle.H6"
+                        Style="margin:0;font-weight:500">
+                SecuritasQuotingApp
+            </RadzenText>
+        </RadzenStack>
+    </RadzenHeader>
+    <RadzenSidebar @bind-Expanded="@_expanded">
+        <NavMenu />
+    </RadzenSidebar>
+    <RadzenBody>
+        <RadzenContentContainer Style="padding:1.5rem">
+            @Body
+        </RadzenContentContainer>
+    </RadzenBody>
+</RadzenLayout>
+
+<RadzenNotification />
+<RadzenTooltip />
+<RadzenDialog />
+
+@code { bool _expanded = true; }
