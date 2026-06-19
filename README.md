@@ -1,4 +1,4 @@
-# Application to reset a password with TAP (Temporary Access Pass) and update a password for new signin user using Microsoft Graph and Radzen Toolkit MAUI Blazor
+# Application to reset a password with TAP (Temporary Access Pass) and update a password for new signin, also setup a passcode and save to local storage user using Microsoft Graph and Radzen Toolkit MAUI Blazor
 
 <b><ins>Below are pre-requisite(s)</ins> </b>
 
